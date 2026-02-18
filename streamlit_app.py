@@ -21,6 +21,13 @@ from io import BytesIO
 import warnings
 warnings.filterwarnings('ignore')
 
+# Setup data directories
+DATA_DIR = Path("data/user_submissions")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+SUBMISSIONS_CSV = DATA_DIR / "submissions.csv"
+CLASSIFIED_DATA_DIR = Path("data/bristol_stool_dataset")
+CLASSIFIED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 # Page configuration
 st.set_page_config(
     page_title="Bristol Stool Scale Classifier",
@@ -310,6 +317,46 @@ def classify_image(model, image_tensor):
         
     return predicted_class + 1, probabilities[0].cpu().numpy()  # +1 because types are 1-7
 
+# Save image function for training data
+def save_submission(image, predicted_type, image_hash=None):
+    """Save image submission with metadata"""
+    if image_hash is None:
+        image_hash = hashlib.md5(image.tobytes()).hexdigest()
+    
+    # Create filename
+    filename = f"{image_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    filepath = DATA_DIR / filename
+    
+    # Save image
+    image.save(filepath)
+    
+    # Initialize CSV if doesn't exist
+    if not SUBMISSIONS_CSV.exists():
+        df = pd.DataFrame(columns=["timestamp", "filename", "predicted_type", "confirmed_type", "user_feedback", "used_for_training"])
+        df.to_csv(SUBMISSIONS_CSV, index=False)
+    
+    # Add entry to CSV
+    df = pd.read_csv(SUBMISSIONS_CSV)
+    new_entry = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "filename": filename,
+        "predicted_type": f"Type {predicted_type}",
+        "confirmed_type": "",
+        "user_feedback": "",
+        "used_for_training": False
+    }
+    df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
+    df.to_csv(SUBMISSIONS_CSV, index=False)
+    
+    return filepath
+
+# Read submissions
+def get_submissions():
+    """Get all submissions from CSV"""
+    if SUBMISSIONS_CSV.exists():
+        return pd.read_csv(SUBMISSIONS_CSV)
+    return pd.DataFrame(columns=["timestamp", "filename", "predicted_type", "confirmed_type", "user_feedback", "used_for_training"])
+
 # Header
 st.markdown("""
     <div class="main-header">
@@ -475,6 +522,54 @@ with col2:
                     st.metric("Transit Time", result['transit_time'])
                 with col_b:
                     st.metric("Fiber Needs", result['fiber_needs'])
+                
+                # Save submission and feedback section
+                st.markdown("---")
+                st.markdown("### 🤝 Help Improve the Model")
+                
+                col_feedback1, col_feedback2 = st.columns(2)
+                
+                with col_feedback1:
+                    st.markdown("**Is this classification correct?**")
+                    feedback_correct = st.radio(
+                        "Did the model get it right?",
+                        ["Yes, correct ✅", "No, incorrect ❌"],
+                        key="feedback_correct",
+                        label_visibility="collapsed"
+                    )
+                
+                with col_feedback2:
+                    if feedback_correct == "No, incorrect ❌":
+                        correct_type = st.selectbox(
+                            "What's the correct type?",
+                            [f"Type {i+1}" for i in range(7)],
+                            key="correct_type"
+                        )
+                    else:
+                        correct_type = None
+                
+                # Additional feedback
+                user_feedback = st.text_area(
+                    "Any additional comments? (optional)",
+                    placeholder="E.g., image quality, lighting issues, etc.",
+                    key="user_feedback_text"
+                )
+                
+                # Save button
+                if st.button("💾 Save & Help Train Model"):
+                    # Save image
+                    save_submission(image, predicted_type)
+                    
+                    # Update feedback
+                    df = get_submissions()
+                    last_idx = len(df) - 1
+                    df.loc[last_idx, "user_feedback"] = user_feedback
+                    df.loc[last_idx, "confirmed_type"] = correct_type if correct_type else f"Type {predicted_type}"
+                    df.to_csv(SUBMISSIONS_CSV, index=False)
+                    
+                    st.success("✅ Thank you! Your image has been saved and will help improve the model.")
+                    st.info("Periodically, saved images will be reviewed and used to train a better model.")
+
 
 # Recommendations and details
 if image and 'predicted_type' in locals():
