@@ -36,7 +36,7 @@ The app will be available at `http://localhost:8501`
 3. Click "Deploy an app"
 4. Enter: `waltgarcia/stool-AI` and file `streamlit_app.py`
 
-Your app will be live at: `[https://stool-ai-waltgarcia.streamlit.app](https://blank-app-vdw2s266yel.streamlit.app/)`
+Your app will be live at: [https://blank-app-vdw2s266yel.streamlit.app/](https://blank-app-vdw2s266yel.streamlit.app/)
 
 ## 🔄 Training Pipeline
 
