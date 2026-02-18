@@ -21,12 +21,23 @@ from io import BytesIO
 import warnings
 warnings.filterwarnings('ignore')
 
+# Import analytics
+from analytics import analytics
+import uuid
+import time
+
 # Setup data directories
 DATA_DIR = Path("data/user_submissions")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 SUBMISSIONS_CSV = DATA_DIR / "submissions.csv"
 CLASSIFIED_DATA_DIR = Path("data/bristol_stool_dataset")
 CLASSIFIED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# Initialize session tracking
+if 'session_id' not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+    analytics.create_session(st.session_state.session_id)
+    analytics.log_event(st.session_state.session_id, "session_start", "User session started")
 
 # Page configuration
 st.set_page_config(
@@ -459,8 +470,20 @@ with col2:
                     # Preprocess image
                     image_tensor = preprocess_image(image)
                     
-                    # Classify
+                    # Classify with timing
+                    start_time = time.time()
                     predicted_type, probabilities = classify_image(model, image_tensor)
+                    processing_time = (time.time() - start_time) * 1000  # Convert to ms
+                    
+                    # Log classification
+                    analytics.log_event(st.session_state.session_id, "classification", 
+                                      f"Classified as Type {predicted_type}")
+                    analytics.log_classification(
+                        st.session_state.session_id,
+                        predicted_type,
+                        float(probabilities[predicted_type-1]),
+                        processing_time_ms=processing_time
+                    )
                     
                     # Store in history
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -566,6 +589,21 @@ with col2:
                     df.loc[last_idx, "user_feedback"] = user_feedback
                     df.loc[last_idx, "confirmed_type"] = correct_type if correct_type else f"Type {predicted_type}"
                     df.to_csv(SUBMISSIONS_CSV, index=False)
+                    
+                    # Log in analytics
+                    if correct_type and correct_type != f"Type {predicted_type}":
+                        analytics.log_classification(
+                            st.session_state.session_id,
+                            predicted_type,
+                            float(probabilities[predicted_type-1]),
+                            user_corrected=True,
+                            correct_type=int(correct_type.replace("Type ", ""))
+                        )
+                        analytics.log_event(st.session_state.session_id, "feedback_correction",
+                                          f"User corrected: Type {predicted_type} -> {correct_type}")
+                    else:
+                        analytics.log_event(st.session_state.session_id, "feedback_confirm",
+                                          f"User confirmed: Type {predicted_type}")
                     
                     st.success("✅ Thank you! Your image has been saved and will help improve the model.")
                     st.info("Periodically, saved images will be reviewed and used to train a better model.")
