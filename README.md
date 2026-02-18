@@ -29,12 +29,6 @@ streamlit run streamlit_app.py
 ```
 The app will be available at `http://localhost:8501`
 
-3. **(Optional) Run admin dashboard:**
-```bash
-streamlit run admin_dashboard.py
-```
-Default password: `admin123`
-
 ### Deploy to Streamlit Cloud
 
 1. Push your code to GitHub
@@ -42,7 +36,7 @@ Default password: `admin123`
 3. Click "Deploy an app"
 4. Enter: `waltgarcia/stool-AI` and file `streamlit_app.py`
 
-Your app will be live at: `https://stool-ai-waltgarcia.streamlit.app`
+Your app will be live at: `[https://stool-ai-waltgarcia.streamlit.app](https://blank-app-vdw2s266yel.streamlit.app/)`
 
 ## 🔄 Training Pipeline
 
